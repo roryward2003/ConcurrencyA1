@@ -1,78 +1,106 @@
 import java.awt.image.*;
 import java.io.*;
-import java.util.Random;
-
 import javax.imageio.*;
+import java.util.Random;
 
 public class q1 {
 
     // Parameters
-    public static int t;
-    public static int n;
+    public static int t=4;
+    public static int n=4;
     public static int width=4096;
     public static int height=4096;
 
-    // Constants
-    public static final int RED=0xffff0000;
-    public static final int WHITE=0xffffffff;
-    public static final int MIN_SIZE=8;
-    public static final int MAX_SIZE=400;
-    public static final int NUM_OF_SNOWMEN=6;
-    public static final double SCALE = 0.66;
-
-    // My custom enum type for the orientation
-    enum Orientation {up, down, left, right};
-
     public static void main(String[] args) {
         try {
-            // once we know what size we want we can creat an empty image
+            // Create a blank image
             BufferedImage outputimage = new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB);
-            for(int i=0; i<NUM_OF_SNOWMEN; i++) {
-                drawRandomSnowman(outputimage);
-            }
-            
-            // Write out the image
+
+            // Instantiate the SnowmanThread class so we can reference its run() method below
+            SnowmanThread snowmanThread = new SnowmanThread(outputimage, n/t);
+            Thread[] threads = new Thread[t];
+            for(int i=0; i<t; i++)                     // Create t threads using snowmanThread for the runnable
+                threads[i] = new Thread(snowmanThread);
+            for(Thread t : threads)                    // Start all the threads
+                t.start();
+            for(Thread t : threads)                    // Join all the threads
+                t.join();
+
+            // Write the image to a .png file
             File outputfile = new File("outputimage.png");
             ImageIO.write(outputimage, "png", outputfile);
 
-        } catch (Exception e) {
-            System.out.println("ERROR " +e);
-            e.printStackTrace();
+        } catch (Exception e) {                        // Catch errors
+            System.out.println("ERROR " +e);           // And print them to the console
+            e.printStackTrace();                       // Also print the stack trace
         }
     }
-    
+}
+
+class SnowmanThread implements Runnable {
+
+    // Private vars
+    private BufferedImage img;
+    private int numOfSnowmen;
+    private int maxSize;
+
+    // Constants
+    public static final int MIN_SIZE = 8;
+    public static final double SCALE = 0.66;
+
+    // Custom enum type for the orientation
+    enum Orientation {up, down, left, right};
+
+    public SnowmanThread(BufferedImage img, int numOfSnowmen) {
+        super();                                       // Use default Runnable constructor
+        this.img = img;                                // Initialise private img reference
+        this.numOfSnowmen = numOfSnowmen;              // Initialise private numOfSnowmen
+
+        // Calculate max possible size of snowman that could fit on the canvas and set maxSize
+        // In hindsight this creates snowmen that are far too large and will lead to lots of
+        // other threads repeatedly re-generating potential snowmen, but the math is satisfying
+        int min = (img.getWidth() < img.getHeight() ? img.getWidth() : img.getHeight());
+        this.maxSize = (int)(min/((2*SCALE*SCALE)+(2*SCALE)+(2)));
+    }
+
+    @Override
+    public void run() {                                // Overriden run method defines what the thread will do
+        for(int i=0; i<numOfSnowmen; i++)              // when .start() is called on a thread that was created
+            drawRandomSnowman(this.img);               // using this runnable as its constuctor argument
+    }
+
     // This function will draw a snowman of random size and orientation
     // The snowman is guaranteed to be within the bounds of the image
-    public static void drawRandomSnowman(BufferedImage img) {
+    public void drawRandomSnowman(BufferedImage img) {
         int x, y;
         Orientation o;
         Random rng = new Random();
-        int size = rng.nextInt(MIN_SIZE, MAX_SIZE);
+        int size = rng.nextInt(MIN_SIZE, maxSize);
         switch(size%4) {                               // Generate random direction using modulo arithmetic
             case 0:
-                o=Orientation.up;
-                x = rng.nextInt(size, width-size);     // Ensure rng co-ords prevent out of bounds errors
-                y = rng.nextInt((int)(size+(2*size*SCALE)+(2*size*SCALE*SCALE)), height-size);
+                o=Orientation.up;                      // Ensure rng co-ords prevent out of bounds errors
+                x = rng.nextInt(size, img.getWidth()-size);
+                y = rng.nextInt((int)(size+(2*size*SCALE)+(2*size*SCALE*SCALE)), img.getHeight()-size);
                 break;
             case 1:
-                o=Orientation.down;
-                x = rng.nextInt(size, width-size);     // Ensure rng co-ords prevent out of bounds errors
-                y = rng.nextInt(size, (int)(height-(size+(2*size*SCALE)+(2*size*SCALE*SCALE))));
+                o=Orientation.down;                    // Ensure rng co-ords prevent out of bounds errors
+                x = rng.nextInt(size, img.getWidth()-size);
+                y = rng.nextInt(size, (int)(img.getHeight()-(size+(2*size*SCALE)+(2*size*SCALE*SCALE))));
                 break;
             case 2:
-                o=Orientation.left;
-                x = rng.nextInt((int)(size+(2*size*SCALE)+(2*size*SCALE*SCALE)), width-size);
-                y = rng.nextInt(size, height-size);    // Ensure rng co-ords prevent out of bounds errors
+                o=Orientation.left;                    // Ensure rng co-ords prevent out of bounds errors
+                x = rng.nextInt((int)(size+(2*size*SCALE)+(2*size*SCALE*SCALE)), img.getWidth()-size);
+                y = rng.nextInt(size, img.getHeight()-size);
                 break;
             case 3:
-                o=Orientation.right;
-                x = rng.nextInt(size, (int)(width-(size+(2*size*SCALE)+(2*size*SCALE*SCALE))));
-                y = rng.nextInt(size, height-size);    // Ensure rng co-ords prevent out of bounds errors
+                o=Orientation.right;                   // Ensure rng co-ords prevent out of bounds errors
+                x = rng.nextInt(size, (int)(img.getWidth()-(size+(2*size*SCALE)+(2*size*SCALE*SCALE))));
+                y = rng.nextInt(size, img.getHeight()-size);
                 break;
             default:
                 o=Orientation.up;                      // Default snowman is facing up, in the center of
-                x = width/2;                           // the canvas
-                y = height/2;
+                x = img.getWidth()/2;                  // the canvas
+                y = img.getHeight()/2;
                 break;
         }
         int colour = rng.nextInt(0x00ffffff);    // Generate random colour
@@ -112,21 +140,22 @@ public class q1 {
     // Bresenham's algorithm. The function itself is adapted from an example
     // I found on GeeksForGeeks.org
     public static void drawCircle(BufferedImage img, int xc, int yc, int r, int colour){
-        int x = 0, y = r;
-        int d = 3 - 2 * r;
+        int x = 0;                                     // Start position is (0,r)
+        int y = r;                                     // The top of the circle
+        int d = 3-(2*r);                               // With an appropriate decision var
 
-        drawPixels(img, xc, yc, x, y, colour);         // draw the 8 initial pixels
-        while (y >= x){                                // while(in the top right octant)
-            if (d > 0) {                               //   Evaluate the decision param
-                y--;                                   //     Decrement the y co-ord if d indicates to do so
-                d = d + 4 * (x - y) + 10;              //     Update the decision param for next pixel
+        drawPixels(img, xc, yc, x, y, colour);         // Draw the 8 initial pixels
+        while(y>=x){                                   // While(in the top right octant)
+            if(d>0) {                                  // Evaluate the decision param
+                y--;                                   // Decrement the y co-ord if d indicates to do so
+                d = d+4*(x-y)+10;                      // Update the decision param for next pixel
             }
             else {
-                d = d + 4 * x + 6;                     //     Update the decision param for next pixel
+                d = d+(4*x)+6;                         // Update the decision param for next pixel
             }
-            x++;                                       //   Shift focus to the desired pixel
-            drawPixels(img, xc, yc, x, y, colour);     //   Draw this pixel and its equivalent in the
-        }                                              //   7 other octants
+            x++;                                       // Shift focus to the desired pixel
+            drawPixels(img, xc, yc, x, y, colour);     // Draw this pixel and its equivalent in the
+        }                                              // 7 other octants
     }
 
     // This function is a helpter function for the drawCircle() function. Its
