@@ -9,13 +9,17 @@ enum Orientation {up, down, left, right};
 public class q1 {
 
     // Parameters
-    public static int t=1;
-    public static int n=2000;
-    public static int width=4096;
-    public static int height=4096;
+    public static int t;
+    public static int n;
+    public static int width;
+    public static int height;
 
     public static void main(String[] args) {
         try {
+            width = Integer.parseInt(args[0]);
+            height = Integer.parseInt(args[1]);
+            t = Integer.parseInt(args[2]);
+            n = Integer.parseInt(args[3]);
             // Create a blank image
             BufferedImage outputimage = new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB);
             long timeBefore, timeAfter;
@@ -128,11 +132,8 @@ class SnowmanThread implements Runnable {
         this.numOfSnowmen = numOfSnowmen;              // Initialise private numOfSnowmen
 
         // Calculate max possible size of snowman that could fit on the canvas and set maxSize
-        // In hindsight this creates snowmen that are far too large and will lead to lots of
-        // other threads repeatedly re-generating potential snowmen, but the math is satisfying
         int min = (img.getWidth() < img.getHeight() ? img.getWidth() : img.getHeight());
         this.maxSize = (int)(0.5*min/((2*SCALE*SCALE)+(2*SCALE)+(2)));
-        this.maxSize /= 2;                             // Half this value and use it as the cap instead
     }
 
     @Override
@@ -141,7 +142,7 @@ class SnowmanThread implements Runnable {
             drawRandomSnowman(this.img);               // using this runnable as its constuctor argument
     }
 
-    public synchronized void setDrawn(SnowmanDetails s) {
+    public void setDrawn(SnowmanDetails s) {
         for(int i=0; i<drawn.length; i++) {
             if(drawn[i]==null) {
                 drawn[i] = s;
@@ -218,7 +219,7 @@ class SnowmanThread implements Runnable {
             }
             successfullyDrawn = checkDrawable(img, new SnowmanDetails(x, y, size, o), colour);
         }
-        drawSnowman(img, new SnowmanDetails(x, y, size, o), colour, false); // Draw the snowman
+        drawSnowman(img, new SnowmanDetails(x, y, size, o), colour, true); // Draw the snowman
     }
 
     // This function draws a snowman given the center and radius of the base, a colour,
