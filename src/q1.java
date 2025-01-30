@@ -1,10 +1,27 @@
 import java.awt.image.*;
 import java.io.*;
 import javax.imageio.*;
+
 import java.util.Random;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 // Custom enum type for the orientation
 enum Orientation {up, down, left, right};
+
+// 16 snowmen, r=50, 4096x4096, fill off
+// t1 30.2
+// t2 25.86
+// t4 24.56
+// t8 22.12
+
+// 120 snowmen, r=200, 4096x4096, fill off
+// t1 42.055
+// t2 41.475
+// t3 40.175
+// t4 36.675
+// t5 43.51     My laptop drops to 20%
+// t6 41.99
+// t8 73.375    My laptop drops to 10%
 
 public class q1 {
 
@@ -16,18 +33,25 @@ public class q1 {
 
     public static void main(String[] args) {
         try {
-            width = Integer.parseInt(args[0]);
-            height = Integer.parseInt(args[1]);
-            t = Integer.parseInt(args[2]);
-            n = Integer.parseInt(args[3]);
+            width = Integer.parseInt(args[0]);         // Width = first command line parameter
+            height = Integer.parseInt(args[1]);        // Height = second command line parameter
+            t = Integer.parseInt(args[2]);             // #Threads = third command line parameter
+            n = Integer.parseInt(args[3]);             // #Snowmen = fourth command line parameter
+
             // Create a blank image
             BufferedImage outputimage = new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB);
-            long timeBefore, timeAfter;
-            SnowmanDetails[] drawn = new SnowmanDetails[n];
+
+            // Create a list for storing drawn/in-progress snowmen, wihtout sync issues
+            ConcurrentLinkedQueue<SnowmanDetails> drawn = new ConcurrentLinkedQueue<SnowmanDetails>();
+
             // Instantiate the SnowmanThread class so we can reference its run() method below
             SnowmanThread snowmanThread = new SnowmanThread(outputimage, drawn, n/t);
-            Thread[] threads = new Thread[t];
-            for(int i=0; i<t; i++)                     // Create t threads using snowmanThread for the runnable
+
+            // Create some long variables for timing execution
+            long timeBefore, timeAfter;
+
+            Thread[] threads = new Thread[t];          // Create a Thread array of t threads
+            for(int i=0; i<t; i++)                     // Instantiate t threads using snowmanThread for the runnable
                 threads[i] = new Thread(snowmanThread);
             timeBefore = System.currentTimeMillis();   // Get start time
             for(Thread t : threads)                    // Start all the threads
@@ -36,11 +60,11 @@ public class q1 {
                 t.join();
             timeAfter = System.currentTimeMillis();    // Get finish time
 
-            System.out.println(timeAfter-timeBefore+"ms elapsed");
+            System.out.println(timeAfter-timeBefore+"ms elapsed"); // Print out time taken in ms
 
             // Write the image to a .png file
-            File outputfile = new File("outputimage.png");
-            ImageIO.write(outputimage, "png", outputfile);
+            // File outputfile = new File("outputimage.png");
+            // ImageIO.write(outputimage, "png", outputfile);
 
         } catch (Exception e) {                        // Catch errors
             System.out.println("ERROR " +e);           // And print them to the console
@@ -52,45 +76,46 @@ public class q1 {
 class SnowmanDetails {
 
     // Constants
-    public static final int MIN_SIZE = 8;
-    public static final double SCALE = 0.66;
+    public static final int MIN_SIZE = 8;              // Minimum snowman base radius
+    public static final double SCALE = 0.66;           // Scaling factor for each circle in snowman
 
+    // Private variables
     private int[] xs;
     private int[] ys;
     private int[] rs;
     private Orientation o;
 
     public SnowmanDetails(int x, int y, int r, Orientation o) {
-        this.xs = new int[3];
-        this.ys = new int[3];
-        this.rs = new int[3];
-        this.o = o;
-        this.xs[0] = x;
-        this.ys[0] = y;
-        this.rs[0] = r;
-        this.rs[1] = (int)(r*SCALE);
-        this.rs[2] = (int)(r*SCALE*SCALE);
+        this.xs = new int[3];                          // Create array for x co-ords
+        this.ys = new int[3];                          // Create array for y co-ords
+        this.rs = new int[3];                          // Create array for radii
+        this.o = o;                                    // Store orientation
+        this.xs[0] = x;                                // Store base x co-ord
+        this.ys[0] = y;                                // Store base y co-ord
+        this.rs[0] = r;                                // Store base radius
+        this.rs[1] = (int)(r*SCALE);                   // Calculate secondary radius
+        this.rs[2] = (int)(r*SCALE*SCALE);             // Calculate tertiary radius
         switch (o) {
-            case up:
-                xs[1] = x;
+            case up:                                   // Calculate secondary and tertiary
+                xs[1] = x;                             // center co-ords for up orientation
                 xs[2] = x;
                 ys[1] = y-(r+rs[1]);
                 ys[2] = ys[1]-(rs[1]+rs[2]);
                 break;
-            case down:
-                xs[1] = x;
+            case down:                                 // Calculate secondary and tertiary
+                xs[1] = x;                             // center co-ords for up orientation
                 xs[2] = x;
                 ys[1] = y+(r+rs[1]);
                 ys[2] = ys[1]+(rs[1]+rs[2]);
                 break;
-            case left:
-                xs[1] = x-(r+rs[1]);
+            case left:                                 // Calculate secondary and tertiary
+                xs[1] = x-(r+rs[1]);                   // center co-ords for up orientation
                 xs[2] = xs[1]-(rs[1]+rs[2]);
                 ys[1] = y;
                 ys[2] = y;
                 break;
-            case right:
-                xs[1] = x+(r+rs[1]);
+            case right:                                // Calculate secondary and tertiary
+                xs[1] = x+(r+rs[1]);                   // center co-ords for up orientation
                 xs[2] = xs[1]+(rs[1]+rs[2]);
                 ys[1] = y;
                 ys[2] = y;
@@ -100,24 +125,24 @@ class SnowmanDetails {
         }
     }
 
-    public int getX(int i) { return xs[i]; }
-    public void setX(int x, int i) { xs[i] = x; }
+    public int getX(int i) { return xs[i]; }           // Indexed getter for all X co-ords
+    public void setX(int x, int i) { xs[i] = x; }      // Indexed setter for all X co-ords
 
-    public int getY(int i) { return ys[i]; }
-    public void setY(int y, int i) { ys[i] = y; }
+    public int getY(int i) { return ys[i]; }           // Indexed getter for all Y co-ords
+    public void setY(int y, int i) { ys[i] = y; }      // Indexed setter for all Y co-ords
 
-    public int getR(int i) { return rs[i]; }
-    public void setR(int r, int i) { rs[i] = r; }
+    public int getR(int i) { return rs[i]; }           // Indexed getter for all Radii
+    public void setR(int r, int i) { rs[i] = r; }      // Indexed setter for all Radii
 
-    public Orientation getO() { return o; }
-    public void setO(Orientation o) { this.o = o; }
+    public Orientation getO() { return o; }            // Getter for Orientation
+    public void setO(Orientation o) { this.o = o; }    // Setter for Orientation
 }
 
 class SnowmanThread implements Runnable {
 
     // Private vars
     private BufferedImage img;
-    private SnowmanDetails[] drawn;
+    private ConcurrentLinkedQueue<SnowmanDetails> drawn;
     private int numOfSnowmen;
     private int maxSize;
 
@@ -125,7 +150,7 @@ class SnowmanThread implements Runnable {
     public static final int MIN_SIZE = 8;
     public static final double SCALE = 0.66;
 
-    public SnowmanThread(BufferedImage img, SnowmanDetails[] drawn, int numOfSnowmen) {
+    public SnowmanThread(BufferedImage img, ConcurrentLinkedQueue<SnowmanDetails> drawn, int numOfSnowmen) {
         super();                                       // Use default Runnable constructor
         this.img = img;                                // Initialise private img reference
         this.drawn = drawn;
@@ -142,95 +167,98 @@ class SnowmanThread implements Runnable {
             drawRandomSnowman(this.img);               // using this runnable as its constuctor argument
     }
 
+    // Adds a SnowmanDetails object to the shared list, indicating it is drawn
+    // or in progress. Differentiating between drawn and in progress is irrelevant
     public void setDrawn(SnowmanDetails s) {
-        for(int i=0; i<drawn.length; i++) {
-            if(drawn[i]==null) {
-                drawn[i] = s;
-                break;
-            }
-        }
+        drawn.add(s);                                  // Add the proposed snowman at the end of the lsit
     }
 
+    // Function to check all 9 possible pairs of circles for intersection
+    // between two given snowmen
     public boolean intersects(SnowmanDetails s0, SnowmanDetails s1) {
-        for(int i=0; i<3; i++) {
-            for(int j=0; j<3; j++) {
+        for(int i=0; i<3; i++) {                       // For each pair of circles across the two snowmen
+            for(int j=0; j<3; j++) {                   // If the circles intersect, return true
                 if(intersects(s0.getX(i), s1.getX(j), s0.getY(i), s1.getY(j), s0.getR(i), s1.getR(j))) {
                     return true;
                 }
             }
         }
-        return false;
+        return false;                                  // If no check returned true, then return false
     }
 
+    // Simple distance formula function to check if two circles intersect. This
+    // also returns true for the case where one circle is fully inside the other
     public boolean intersects(int x0, int x1, int y0, int y1, int r0, int r1) {
         int xDist = x0 - x1;
         int yDist = y0 - y1;
-        int rSum = r0 + r1;                             // The -1 here ensures that 1 pixel rounding issues
+        int rSum = r0 + r1;                            // The -1 here ensures that 1 pixel rounding issues
         return (xDist*xDist)+(yDist*yDist) < (rSum*rSum)-1; // don't influence the "decision" parameter in 
-    }                                                   // Bresenham's circle algorithm, preventing overlaps
+    }                                                  // Bresenham's circle algorithm, preventing overlaps
 
-    public synchronized boolean checkDrawable(BufferedImage img, SnowmanDetails s0, int colour) {
-        for(SnowmanDetails s1 : drawn) {
-            if(s1 == null) { break; }
-            if(intersects(s0, s1))
-                return false;
+    // Function for checking if proposed snowman will overlap any drawn or in
+    // progress snowmen. If not the snowmen is added to the drawn list, and true
+    // is returned to indicate that drawing can proceed.
+    public boolean checkDrawable(BufferedImage img, SnowmanDetails s0, int colour) {
+        for(SnowmanDetails s1 : drawn) {               // For each drawn or in progress snowman
+            if(intersects(s0, s1))                     // if proposed snowman intersects a list entry
+                return false;                          // indicate that the proposed snowman is undrawable
         }
-        setDrawn(s0);
-        return true;
+        setDrawn(s0);                                  // If safe to draw, add it to the list
+        return true;                                   // and indicate that it is safe to draw
     }
 
     // This function will draw a snowman of random size and orientation
     // The snowman is guaranteed to be within the bounds of the image
     public void drawRandomSnowman(BufferedImage img) {
-        int x=0, y=0, size=0;                              // Assign default values so
-        Orientation o = Orientation.up;                    // compiler doesn't complain
+        int x=0, y=0, size=0;                          // Assign default values so
+        Orientation o = Orientation.up;                // compiler doesn't complain
         Random rng = new Random();
-        int colour = rng.nextInt(0x00800000, 0x00ffffff);    // Generate random colour
-        colour = (colour|0xff000000);                      // Ensure colour is opaque
-        boolean successfullyDrawn = false;
+        int colour = rng.nextInt(0x00800000, 0x00ffffff); // Generate random visible colour
+        colour = (colour|0xff000000);                  // Ensure colour is opaque
+        boolean successfullyDrawn = false;             // Boolean for exiting loop
         while(!successfullyDrawn) {
             size = rng.nextInt(MIN_SIZE, maxSize);
-            switch(size%4) {                               // Generate random direction using modulo arithmetic
+            switch(size%4) {                           // Generate random direction using modulo arithmetic
                 case 0:
-                    o=Orientation.up;                      // Ensure rng co-ords prevent out of bounds errors
+                    o=Orientation.up;                  // Ensure rng co-ords prevent out of bounds errors
                     x = rng.nextInt(size, img.getWidth()-size);
                     y = rng.nextInt((int)(size+(2*size*SCALE)+(2*size*SCALE*SCALE)), img.getHeight()-size);
                     break;
                 case 1:
-                    o=Orientation.down;                    // Ensure rng co-ords prevent out of bounds errors
+                    o=Orientation.down;                // Ensure rng co-ords prevent out of bounds errors
                     x = rng.nextInt(size, img.getWidth()-size);
                     y = rng.nextInt(size, (int)(img.getHeight()-(size+(2*size*SCALE)+(2*size*SCALE*SCALE))));
                     break;
                 case 2:
-                    o=Orientation.left;                    // Ensure rng co-ords prevent out of bounds errors
+                    o=Orientation.left;                // Ensure rng co-ords prevent out of bounds errors
                     x = rng.nextInt((int)(size+(2*size*SCALE)+(2*size*SCALE*SCALE)), img.getWidth()-size);
                     y = rng.nextInt(size, img.getHeight()-size);
                     break;
                 case 3:
-                    o=Orientation.right;                   // Ensure rng co-ords prevent out of bounds errors
+                    o=Orientation.right;               // Ensure rng co-ords prevent out of bounds errors
                     x = rng.nextInt(size, (int)(img.getWidth()-(size+(2*size*SCALE)+(2*size*SCALE*SCALE))));
                     y = rng.nextInt(size, img.getHeight()-size);
                     break;
                 default:
-                    o=Orientation.up;                      // Default snowman is facing up, in the center of
-                    x = img.getWidth()/2;                  // the canvas
+                    o=Orientation.up;                  // Default snowman is facing up, in the center of
+                    x = img.getWidth()/2;              // the canvas
                     y = img.getHeight()/2;
                     break;
             }
             successfullyDrawn = checkDrawable(img, new SnowmanDetails(x, y, size, o), colour);
         }
-        drawSnowman(img, new SnowmanDetails(x, y, size, o), colour, true); // Draw the snowman
+        drawSnowman(img, new SnowmanDetails(x, y, size, o), colour, false); // Draw the snowman
     }
 
     // This function draws a snowman given the center and radius of the base, a colour,
     // an orientation and a BufferedImage to draw on
     public static void drawSnowman(BufferedImage img, SnowmanDetails s, int colour, boolean fill) {
-        int x = s.getX(0);
-        int y = s.getY(0);
-        int r0 = s.getR(0);
-        int r1 = s.getR(1);                     // Calculate secondary radius
-        int r2 = s.getR(2);                   // Calculate tertiary radius
-        drawCircle(img, x, y, r0, colour, fill);           // Draw the base circle
+        int x = s.getX(0);                           // Fetch base x value
+        int y = s.getY(0);                           // Fetch base y value
+        int r0 = s.getR(0);                          // Fetch base radius
+        int r1 = s.getR(1);                          // Calculate secondary radius
+        int r2 = s.getR(2);                          // Calculate tertiary radius
+        drawCircle(img, x, y, r0, colour, fill);       // Draw the base circle
         switch (s.getO()) {
             case up:                                   // Draw secondary and tertiary circles above
                 drawCircle(img, x, s.getY(1), r1, colour, fill);

@@ -2,7 +2,7 @@
 java -version
 n=${1?}
 while [ "$n" -gt 0 ]; do
-  java q1 4096 4096 4 16
+  java q1 4096 4096 8 120
   n=$(( n - 1 ))
 done | awk '
   {sum += $1}
