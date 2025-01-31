@@ -1,0 +1,31 @@
+// 16 snowmen, r=50, 4096x4096, fill off
+// t1 30.2
+// t2 25.86
+// t4 24.56
+// t8 22.12
+
+// 24 snowmen r=200, 1920x1080, fill on
+// t1 38.6
+// t2 35.87
+// t4 36.62
+// t8 
+
+// 360 snowmen, r=300, 1920x1080, fill off
+// 1 thread  - 8.27 - 3.66
+// 2 threads - 6.87 - 2.93
+// 3 threads - 6.78 - 2.91
+// 4 threads - 7.13 - 3.04
+// 5 threads - 6.71 - 2.87
+// 6 threads - 6.89 - 2.93
+// 7 threads - 6.6  - 2.85
+// 8 threads - 6.86 - 3.05
+
+// 32 snowmen, r=100, 1920x1080, fill on
+// 1 thread  - 8.33 - 8.55
+// 2 threads - 6.82 - 6.45
+// 3 threads - 6.69 - 5.91
+// 4 threads - 5.72 - 6.29
+// 5 threads - 5.62 - 5.68
+// 6 threads - 5.66 - 5.53
+// 7 threads - 5.34 - 5.56
+// 8 threads - 5.81 - 5.09
