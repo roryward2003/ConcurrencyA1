@@ -8,39 +8,6 @@ import java.util.concurrent.ThreadLocalRandom;
 // Custom enum type for the orientation
 enum Orientation {up, down, left, right};
 
-// 16 snowmen, r=50, 4096x4096, fill off
-// t1 30.2
-// t2 25.86
-// t4 24.56
-// t8 22.12
-
-// 24 snowmen r=200, 1920x1080, fill on
-// t1 38.6
-// t2 35.87
-// t4 36.62
-// t8 
-
-// 360 snowmen, r=300, 1920x1080, fill off
-// 1 thread  - 8.27 - 3.66
-// 2 threads - 6.87 - 2.93
-// 3 threads - 6.78 - 2.91
-// 4 threads - 7.13 - 3.04
-// 5 threads - 6.71 - 2.87
-// 6 threads - 6.89 - 2.93
-// 7 threads - 6.6  - 2.85
-// 8 threads - 6.86 - 3.05
-
-// 32 snowmen, r=100, 1920x1080, fill on
-// 1 thread  - 8.33 - 7.96 - 8.55 
-// 2 threads - 6.82 - 6.67 - 6.45 
-// 3 threads - 6.69 - 5.99 - 5.91 
-// 4 threads - 5.72 - 6.02 - 6.29 
-// 5 threads - 5.62 - 6.03 - 5.68 
-// 6 threads - 5.66 - 5.78 - 5.53 
-// 7 threads - 5.34 - 5.60 - 5.56 
-// 8 threads - 5.81 - 6.15 - 5.09
-
-
 public class q1 {
 
     // Parameters
@@ -57,78 +24,43 @@ public class q1 {
             n = Integer.parseInt(args[3]);             // #Snowmen = fourth command line parameter
 
             // Create a blank image
-            // BufferedImage outputimage = new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB);
+            BufferedImage outputimage = new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB);
 
             // Create a list for storing drawn/in-progress snowmen, wihtout sync issues
-            // ArrayList<SnowmanDetails> drawn = new ArrayList<SnowmanDetails>();
+            ArrayList<SnowmanDetails> drawn = new ArrayList<SnowmanDetails>();
 
             // Instantiate the SnowmanThread class so we can reference its run() method below
-            SnowmanThread snowmanThread;
+            SnowmanThread snowmanThread = new SnowmanThread(outputimage, drawn, n/t);
 
             // Create some long variables for timing execution
             long timeBefore, timeAfter;
-            Thread[] threads;
-            int nTests = 100;
-            long[][] results = new long[t][nTests];
 
-            for(int i=1; i<=t; i++) {
-                for(int k=0; k<nTests; k++) {
-                    threads = new Thread[i];                   // Create a Thread array of t threads
-                    snowmanThread = new SnowmanThread(new BufferedImage(width,height,BufferedImage.TYPE_INT_ARGB),
-                        new ArrayList<SnowmanDetails>(), n/i);
-                    for(int j=0; j<i; j++)                     // Instantiate t threads using snowmanThread for the runnable
-                        threads[j] = new Thread(snowmanThread);
-                    timeBefore = System.currentTimeMillis();   // Get start time
-                    for(Thread t : threads)                    // Start all the threads
-                        t.start();
-                    for(Thread t : threads)                    // Join all the threads
-                        t.join();
-                    timeAfter = System.currentTimeMillis();    // Get finish time
+            Thread[] threads = new Thread[t];          // Create a Thread array of t threads
+            for(int i=0; i<t; i++)                     // Instantiate t threads using snowmanThread for the runnable
+                threads[i] = new Thread(snowmanThread);
+            timeBefore = System.currentTimeMillis();   // Get start time
+            for(Thread t : threads)                    // Start all the threads
+                t.start();
+            for(Thread t : threads)                    // Join all the threads
+                t.join();
+            timeAfter = System.currentTimeMillis();    // Get finish time
 
-                    System.out.println(timeAfter-timeBefore); // Print out time taken in ms
-                    results[i-1][k]=(timeAfter-timeBefore);
-                }
-            }
-            System.out.println(1+" thread - "+mean(results[0]));
-            for(int i=1; i<t; i++) {
-                System.out.println((i+1)+" threads - "+mean(results[i]));
-            }
-
-
-            // Thread[] threads = new Thread[t];          // Create a Thread array of t threads
-            // for(int i=0; i<t; i++)                     // Instantiate t threads using snowmanThread for the runnable
-            //     threads[i] = new Thread(snowmanThread);
-            // timeBefore = System.currentTimeMillis();   // Get start time
-            // for(Thread t : threads)                    // Start all the threads
-            //     t.start();
-            // for(Thread t : threads)                    // Join all the threads
-            //     t.join();
-            // timeAfter = System.currentTimeMillis();    // Get finish time
-
-            // System.out.println(timeAfter-timeBefore); // Print out time taken in ms
+            System.out.println(timeAfter-timeBefore); // Print out time taken in ms
 
             // Write the image to a .png file
-            // File outputfile = new File("outputimage.png");
-            // ImageIO.write(outputimage, "png", outputfile);
+            File outputfile = new File("outputimage.png");
+            ImageIO.write(outputimage, "png", outputfile);
 
         } catch (Exception e) {                        // Catch errors
             System.out.println("ERROR " +e);           // And print them to the console
             e.printStackTrace();                       // Also print the stack trace
         }
     }
-
-    public static double mean(long[] arr) {
-        if(arr.length == 0)
-            return -1.0;
-        long sum = 0;
-        for(long l : arr) {
-            sum += l;
-        }
-        // double mean = sum / arr.length;
-        return ((double)sum) / ((double)arr.length);
-    }
 }
 
+// The SnowmanDetails class stores all the details related to a particular snowman.
+// A list of this object type is maintained to track drawn/in-progress snowmen
+// across all the threads.
 class SnowmanDetails {
 
     // Constants
@@ -161,32 +93,32 @@ class SnowmanDetails {
                 xs[2] = x;
                 ys[1] = y-(r+rs[1]);
                 ys[2] = ys[1]-(rs[1]+rs[2]);
-                boundaryX=x;
-                boundaryY=y-(rs[1]+rs[2]);
+                boundaryX=x;                           // Calculate bounding circle center
+                boundaryY=y-(rs[1]+rs[2]);             // co-ords (for quick proximity checks)
                 break;
             case down:                                 // Calculate secondary and tertiary
                 xs[1] = x;                             // center co-ords for up orientation
                 xs[2] = x;
                 ys[1] = y+(r+rs[1]);
                 ys[2] = ys[1]+(rs[1]+rs[2]);
-                boundaryX=x;
-                boundaryY=y+(rs[1]+rs[2]);
+                boundaryX=x;                           // Calculate bounding circle center
+                boundaryY=y+(rs[1]+rs[2]);             // co-ords (for quick proximity checks)
                 break;
             case left:                                 // Calculate secondary and tertiary
                 xs[1] = x-(r+rs[1]);                   // center co-ords for up orientation
                 xs[2] = xs[1]-(rs[1]+rs[2]);
                 ys[1] = y;
                 ys[2] = y;
-                boundaryX=x-(rs[1]+rs[2]);
-                boundaryY=y;
+                boundaryX=x-(rs[1]+rs[2]);             // Calculate bounding circle center
+                boundaryY=y;                           // co-ords (for quick proximity checks)
                 break;
             case right:                                // Calculate secondary and tertiary
                 xs[1] = x+(r+rs[1]);                   // center co-ords for up orientation
                 xs[2] = xs[1]+(rs[1]+rs[2]);
                 ys[1] = y;
                 ys[2] = y;
-                boundaryX=x+(rs[1]+rs[2]);
-                boundaryY=y;
+                boundaryX=x+(rs[1]+rs[2]);             // Calculate bounding circle center
+                boundaryY=y;                           // co-ords (for quick proximity checks)
                 break;
             default:
                 break;
@@ -194,25 +126,12 @@ class SnowmanDetails {
     }
 
     public int getX(int i) { return xs[i]; }           // Indexed getter for all X co-ords
-    public void setX(int x, int i) { xs[i] = x; }      // Indexed setter for all X co-ords
-
     public int getY(int i) { return ys[i]; }           // Indexed getter for all Y co-ords
-    public void setY(int y, int i) { ys[i] = y; }      // Indexed setter for all Y co-ords
-
     public int getR(int i) { return rs[i]; }           // Indexed getter for all Radii
-    public void setR(int r, int i) { rs[i] = r; }      // Indexed setter for all Radii
-
     public Orientation getO() { return o; }            // Getter for Orientation
-    public void setO(Orientation o) { this.o = o; }    // Setter for Orientation
-
-    public int getBoundaryX() { return boundaryX; }            // Getter for Orientation
-    public void setBoundaryX(int bX) { this.boundaryX = bX; }    // Setter for Orientation
-    
-    public int getBoundaryY() { return boundaryY; }            // Getter for Orientation
-    public void setBoundaryY(int bY) { this.boundaryY = bY; }    // Setter for Orientation
-    
-    public int getBoundaryR() { return boundaryR; }            // Getter for Orientation
-    public void setBoundaryR(int bR) { this.boundaryR = bR; }    // Setter for Orientation
+    public int getBoundaryX() { return boundaryX; }    // Getter for bounding circle X co-ord
+    public int getBoundaryY() { return boundaryY; }    // Getter for bounding circle Y co-ord
+    public int getBoundaryR() { return boundaryR; }    // Getter for bounding circle Radius
 }
 
 class SnowmanThread implements Runnable {
