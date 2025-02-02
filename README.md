@@ -1,4 +1,17 @@
-# ConcurrencyA1
-This small project is a College Assignment I completed for my Concurrent Programming module.
+# Q1
 
-I conducted all tests on this project using an intel i7-1185G7 CPU, which has 4 cores and 8 threads.
+## Running
+In your command line run the following:
+ - cd src
+ - javac q1.java
+ - java w h t n     // where w = width, h = height, t = num of threads, n = num of snowmen
+
+## Description
+This code randomly generates and draws snowmen on a BufferedImage, without overlaps.
+It is set up to allow for multiple threads to work on this task simultaneously.
+
+# Q2
+
+## Running
+
+## Description
