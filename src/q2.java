@@ -1,33 +1,81 @@
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.TreeMap;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.IntStream;
+import java.util.stream.Collectors;
+
+// Create enum type for describing the contents of a cell
+enum CellStatus {empty, snakeTail, snakeHead, ladderBase, ladderTop};
 
 public class q2 {
 
     public static int k;
     public static int j;
+    public static int s;
 
     public static void main(String[] args) {
         try {
+            // Parse command line arguments
             k = Integer.parseInt(args[0]);
             j = Integer.parseInt(args[1]);
-            TreeMap<Integer, Integer> snakesAndLadders = new TreeMap<Integer, Integer>();
-            snakesAndLadders.put(3,92);
-            snakesAndLadders.put(27,9);
-            Player p = new Player(snakesAndLadders);
-            Adder a = new Adder(snakesAndLadders, k);
-            Remover r = new Remover(snakesAndLadders, j);
+            s = Integer.parseInt(args[2]);
+
+            // Initialise the board with 100 empty cells
+            Cell[][] board = new Cell[10][10];
+            for(int i=0; i<10; i++) {
+                for(int j=0; j<10; j++) {
+                    board[i][j] = new Cell((i*10)+j);
+                }
+            }
+
+            // Initialise board randomly with 10 ladders and 9 snakes
+            Adder initialiser = new Adder(board, k, System.currentTimeMillis());
+            initialiser.placeSnake();
+            for(int i=0; i<9; i++) {
+                initialiser.placeLadder();
+                initialiser.placeSnake();
+            }
+
+            // Change timestamps for initial adds to 000000000
+            List<String> initLog = initialiser.getLog();
+            List<String> fixedInitLog = new ArrayList<String>();
+            for(String s : initLog) {
+                fixedInitLog.add(s.replaceFirst("[0-9]* ", "000000000 "));
+            }
+
+            // Instantiate a Player, Adder and Remover. Initialise Adder log accordingly.
+            // Create 3 threads using these Runnable objects
+            Player p = new Player(board, System.currentTimeMillis());
+            Adder a = new Adder(board, k, System.currentTimeMillis(), fixedInitLog);
+            Remover r = new Remover(board, j, System.currentTimeMillis());
             Thread pT = new Thread(p);
             Thread aT = new Thread(a);
             Thread rT = new Thread(r);
+
+            // Start these threads then sleep for s seconds
             pT.start();
             aT.start();
             rT.start();
+            Thread.sleep(s*1000);
+
+            // Interrupt and join all threads
+            pT.interrupt();
+            aT.interrupt();
+            rT.interrupt();
             pT.join();
             aT.join();
             rT.join();
+
+            // Combine, sort and print all logs
+            List<String> allLogs = new ArrayList<String>();
+            allLogs.addAll(p.getLog());
+            allLogs.addAll(a.getLog());
+            allLogs.addAll(r.getLog());
+            allLogs.sort(Comparator.comparing((String s) -> Integer.valueOf(s.substring(0, 9))));
+            for(String s : allLogs)
+                System.out.println(s);
+
         } catch (Exception e) {                        // Catch errors
             System.out.println("ERROR " +e);           // And print them to the console
             e.printStackTrace();                       // Also print the stack trace
@@ -35,17 +83,47 @@ public class q2 {
     }
 }
 
+// The Cell class is used to represent a single square on the snakes and ladders board.
+class Cell {
+    private CellStatus status;                         // Status describes the cell contents
+    private int position;                              // Position is where the cell lies on the board
+    private int destination;                           // Destination is the connected cell if status != empty
+
+    public Cell(int position) {                        // Simple constructor
+        this.status = CellStatus.empty;
+        this.position = position;
+        this.destination = 0;
+    }
+
+    public CellStatus getStatus() { return status; }   // Getter and setter for status
+    public void setStatus(CellStatus status) { this.status = status; }
+
+    public int getPosition() { return position; }      // Getter and setter for position
+    public void setPosition(int position) { this.position = position; }
+    
+    public int getDestination() { return destination; }// Getter and setter for destination
+    public void setDestination(int destination) { this.destination = destination; }
+}
+
+// The Player class models the behaviour of a snakes and ladders player
 class Player implements Runnable{
 
-    private TreeMap<Integer, Integer> snakesAndLadders;
+    private Cell[][] board;
     private ThreadLocalRandom rng;
     private int position;
+    private long startTime;
+    private String timeDiff;
+    private List<String> log;
 
-    public Player(TreeMap<Integer, Integer> snakesAndLadders) {
-        this.snakesAndLadders = snakesAndLadders;
+    public Player(Cell[][] board, long startTime) {
+        this.board = board;
         this.rng = ThreadLocalRandom.current();
         this.position = 0;
+        this.startTime = startTime;
+        this.log = new ArrayList<String>();
     }
+
+    public List<String> getLog() { return this.log; }
 
     @Override
     public void run() {
@@ -60,42 +138,68 @@ class Player implements Runnable{
                     won = false;
                     position = 0;
                 }
-                System.out.println(position);
             }
-        } catch (Exception e) {                        // Catch errors
-            System.out.println("ERROR " +e);           // And print them to the console
-            e.printStackTrace();                       // Also print the stack trace
+        } catch (Exception e) {                        // Catch interrupts
+            System.out.println("Thread "+Thread.currentThread().threadId()+": "+e);
         }
     }
 
     public boolean makeMove(int steps) {
         position += steps;
+        timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
         if(position >= 99) {
+            log.add(timeDiff+" Player wins");
             return true;
         } else {
-            position = checkForSnl(position);
+            int newPos;
+            log.add(timeDiff+" Player "+position);
+            if((newPos = checkForSnl(position)) != position) {
+                log.add(timeDiff+" Player "+position+" "+newPos);
+                position = newPos;
+            }
             return false;
         }
     }
 
     public synchronized int checkForSnl(int pos) {
-        if(snakesAndLadders.containsKey(pos))
-            return snakesAndLadders.get(pos);
-        return pos;
+        switch(board[pos/10][pos%10].getStatus()) {
+            case snakeTail:
+                return board[pos/10][pos%10].getDestination();
+            case ladderBase:
+                return board[pos/10][pos%10].getDestination();
+            default:
+                return pos;
+        }
     }
 }
 
+// The Adder class provides funcitonality for adding snakes and ladders to the board
 class Adder implements Runnable{
 
-    private TreeMap<Integer, Integer> snakesAndLadders;
+    private Cell[][] board;
     private int sleepTime;
     private ThreadLocalRandom rng;
+    private long startTime;
+    private String timeDiff;
+    private List<String> log;
     
-    public Adder(TreeMap<Integer, Integer> snakesAndLadders, int sleepTime) {
-        this.snakesAndLadders = snakesAndLadders;
+    public Adder(Cell[][] board, int sleepTime, long startTime, List<String> log) {
+        this.board = board;
         this.sleepTime = sleepTime;
         this.rng = ThreadLocalRandom.current();
+        this.startTime = startTime;
+        this.log = log;
     }
+
+    public Adder(Cell[][] board, int sleepTime, long startTime) {
+        this.board = board;
+        this.sleepTime = sleepTime;
+        this.rng = ThreadLocalRandom.current();
+        this.startTime = startTime;
+        this.log = new ArrayList<String>();
+    }
+    
+    public List<String> getLog() { return this.log; }
 
     @Override
     public void run() {
@@ -108,71 +212,92 @@ class Adder implements Runnable{
                 }
                 Thread.sleep(sleepTime);
             }
-            
-        } catch (Exception e) {                        // Catch errors
-            System.out.println("ERROR " +e);           // And print them to the console
-            e.printStackTrace();                       // Also print the stack trace
-            System.out.println(snakesAndLadders.entrySet().toString());
+        } catch (Exception e) {                        // Catch interrupts
+            System.out.println("Thread "+Thread.currentThread().threadId()+": "+e);
         }
         
     }
 
     public synchronized void placeLadder() {
-        int[] openSpots = new int[98-snakesAndLadders.keySet().size()];
-        int j=0, top=0, bottom=0, bottomIndex=0;
+        List<Cell> emptyCells = Arrays.stream(board).flatMap(r -> Arrays.stream(r))
+            .filter(c -> c.getStatus() == CellStatus.empty)
+            .collect(Collectors.toList());
+        emptyCells.removeFirst();
+        emptyCells.removeLast();
+
+        if(emptyCells.isEmpty())
+            return;
+        
+        int baseIndex=0;
+        Cell top=new Cell(0), base = new Cell(0);
         boolean safe = false;
-        for(int i=1; i<99; i++) {
-            if(!snakesAndLadders.containsKey(i) && !snakesAndLadders.containsValue(i))
-                openSpots[j++] = i;
-        }
+
         while(!safe) {
             safe = true;
-            bottomIndex = rng.nextInt(openSpots.length);
-            bottom = openSpots[bottomIndex];
-            top = openSpots[rng.nextInt(bottomIndex, openSpots.length)];
-            if((int)top/10 <= (int)bottom/10)
+            baseIndex = rng.nextInt(emptyCells.size()-1);  // -1 ensures top element cannot be picked
+            base = emptyCells.get(baseIndex);
+            top = emptyCells.get(rng.nextInt(baseIndex+1, emptyCells.size()));
+            if((int)top.getPosition()/10 <= (int)base.getPosition()/10)
                 safe = false;
         }
-        snakesAndLadders.put(bottom, top);
-        System.out.println("Ladder Placed at ("+bottom+", "+top+")");
+
+        base.setStatus(CellStatus.ladderBase);
+        top.setStatus(CellStatus.ladderTop);
+        base.setDestination(top.getPosition());
+        timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
+        log.add(timeDiff+" Adder ladder "+base.getPosition()+" "+top.getPosition());
     }
 
     public synchronized void placeSnake() {
-        int[] openSpots = new int[89-snakesAndLadders.keySet().size()];
-        int j=0, top=0, bottom=0, topIndex=0;
+        List<Cell> emptyCells = Arrays.stream(board).flatMap(r -> Arrays.stream(r))
+            .filter(c -> c.getStatus() == CellStatus.empty)
+            .collect(Collectors.toList());
+        emptyCells.removeFirst();
+        emptyCells.removeLast();
+
+        if(emptyCells.isEmpty())
+            return;
+        
+        int tailIndex=0;
+        Cell tail=new Cell(0), head = new Cell(0);
         boolean safe = false;
-        for(int i=1; i<90; i++) {
-            if(!snakesAndLadders.containsKey(i) && !snakesAndLadders.containsValue(i))
-                openSpots[j++] = i;
-        }
+        
         while(!safe) {
             safe = true;
-            topIndex = rng.nextInt(openSpots.length);
-            top = openSpots[topIndex];
-            if(top<=9 || topIndex == 0) {
-                safe = false;
-                continue;
-            }
-            bottom = openSpots[rng.nextInt(topIndex)];
-            if((int)top/10 <= (int)bottom/10)
+            tailIndex = rng.nextInt(1, emptyCells.size()); // 1 Origin prevents first element selection
+            tail = emptyCells.get(tailIndex);
+            head = emptyCells.get(rng.nextInt(tailIndex));
+            if((int)tail.getPosition()/10 <= (int)head.getPosition()/10)
                 safe = false;
         }
-        snakesAndLadders.put(top, bottom);
-        System.out.println("Snake placed at ("+top+", "+bottom+")");
+
+        tail.setStatus(CellStatus.snakeTail);
+        head.setStatus(CellStatus.snakeHead);
+        tail.setDestination(head.getPosition());
+        timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
+        log.add(timeDiff+" Adder snake "+tail.getPosition()+" "+head.getPosition());
     }
 }
 
+// The Remover class provides funcitonality for removing snakes and ladders from the board
 class Remover implements Runnable{
 
-    private TreeMap<Integer, Integer> snakesAndLadders;
+    private Cell[][] board;
     private int sleepTime;
     private ThreadLocalRandom rng;
+    private long startTime;
+    private String timeDiff;
+    private List<String> log;
     
-    public Remover(TreeMap<Integer, Integer> snakesAndLadders, int sleepTime) {
-        this.snakesAndLadders = snakesAndLadders;
+    public Remover(Cell[][] board, int sleepTime, long startTime) {
+        this.board = board;
         this.sleepTime = sleepTime;
         this.rng = ThreadLocalRandom.current();
+        this.startTime = startTime;
+        this.log = new ArrayList<String>();
     }
+
+    public List<String> getLog() { return this.log; }
 
     @Override
     public void run() {
@@ -181,20 +306,27 @@ class Remover implements Runnable{
                 removeSnakeOrLadder();
                 Thread.sleep(sleepTime);
             }
-        } catch (Exception e) {                        // Catch errors
-            System.out.println("ERROR " +e);           // And print them to the console
-            e.printStackTrace();                       // Also print the stack trace
-            System.out.println(snakesAndLadders.entrySet().toString());
+        } catch (Exception e) {                        // Catch interrupts
+            System.out.println("Thread "+Thread.currentThread().threadId()+": "+e);
         }
     }
 
     public synchronized void removeSnakeOrLadder() {
-        int size = snakesAndLadders.keySet().size();
-        if(size != 0) {
-            int removeIndex = rng.nextInt(size);
-            Object removeKey = snakesAndLadders.keySet().toArray()[removeIndex]; // Causing big bad exceptions
-            System.out.println("Ladder/Snake removed at ("+removeKey+", "+snakesAndLadders.get(removeKey)+")");
-            snakesAndLadders.remove(removeKey);
-        }
+        List<Cell> occupiedCells = Arrays.stream(board).flatMap(r -> Arrays.stream(r))
+            .filter(c -> (c.getStatus() == CellStatus.snakeTail || c.getStatus() == CellStatus.ladderBase))
+            .collect(Collectors.toList());
+        if(occupiedCells.isEmpty())
+            return;
+
+        Cell startCell = occupiedCells.get(rng.nextInt(occupiedCells.size()));
+        Cell endCell = board[startCell.getDestination()/10][startCell.getDestination()%10];
+        endCell.setStatus(CellStatus.empty);
+        startCell.setStatus(CellStatus.empty);
+        startCell.setDestination(0);
+        timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
+        if(startCell.getPosition() < endCell.getPosition())
+            log.add(timeDiff+" Remover ladder "+startCell.getPosition()+" "+endCell.getPosition());
+        else
+            log.add(timeDiff+" Remover snake "+startCell.getPosition()+" "+endCell.getPosition());
     }
 }
