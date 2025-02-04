@@ -187,11 +187,11 @@ class SnowmanThread implements Runnable {
     // Simple distance formula function to check if two circles intersect. This
     // also returns true for the case where one circle is fully inside the other
     public boolean intersects(int x0, int x1, int y0, int y1, int r0, int r1) {
-        int xDist = x0 - x1;
-        int yDist = y0 - y1;
-        int rSum = r0 + r1;                            // The +1 here ensures that 1 pixel rounding issues
-        return (xDist*xDist)+(yDist*yDist) <= (rSum*rSum)+1; // don't influence the "decision" parameter in 
-    }                                                  // Bresenham's circle algorithm, preventing overlaps
+        int xDist = Math.abs(x0-x1)-1;                 // The -1 here ensures that 1 pixel rounding issues
+        int yDist = Math.abs(y0-y1)-1;                 // don't influence the "decision" parameter in Bresenham's
+        int rSum = r0 + r1;                            // circle algorithm, preventing overlaps of 1 pixel. Circles
+        return (xDist*xDist)+(yDist*yDist) <= (rSum*rSum); // can still touch, but can't share any pixels at all
+    }
 
     // Function for checking if proposed snowman will overlap any drawn or in
     // progress snowmen. If not the snowmen is added to the drawn list, and true
@@ -245,7 +245,7 @@ class SnowmanThread implements Runnable {
             }
             successfullyDrawn = checkDrawable(img, new SnowmanDetails(x, y, size, o), colour);
         }
-        drawSnowman(img, new SnowmanDetails(x, y, size, o), colour, true); // Draw the snowman
+        drawSnowman(img, new SnowmanDetails(x, y, size, o), colour, false); // Draw the snowman
     }
 
     // This function draws a snowman given the center and radius of the base, a colour,
