@@ -47,7 +47,8 @@ public class q2 {
             // Instantiate a Player, Adder and Remover. Initialise Adder log accordingly.
             // Create 3 threads using these Runnable objects
             Player p = new Player(board, System.currentTimeMillis());
-            Adder a = new Adder(board, k, System.currentTimeMillis(), fixedInitLog);
+            Adder a = new Adder(board, k, System.currentTimeMillis());
+            a.setLog(fixedInitLog);
             Remover r = new Remover(board, j, System.currentTimeMillis());
             Thread pT = new Thread(p);
             Thread aT = new Thread(a);
@@ -108,14 +109,14 @@ class Cell {
 // The Player class models the behaviour of a snakes and ladders player
 class Player implements Runnable{
 
-    private Cell[][] board;
-    private ThreadLocalRandom rng;
-    private int position;
-    private long startTime;
-    private String timeDiff;
-    private List<String> log;
+    private Cell[][] board;                            // Reference to the board 2D cell array
+    private ThreadLocalRandom rng;                     // Thread-safe rng for random ops
+    private int position;                              // Current position of player on the board
+    private long startTime;                            // Value of system clock when thread was started
+    private String timeDiff;                           // String rep of time since thread start
+    private List<String> log;                          // Log of actions taken
 
-    public Player(Cell[][] board, long startTime) {
+    public Player(Cell[][] board, long startTime) {    // Simple constructor
         this.board = board;
         this.rng = ThreadLocalRandom.current();
         this.position = 0;
@@ -123,51 +124,56 @@ class Player implements Runnable{
         this.log = new ArrayList<String>();
     }
 
-    public List<String> getLog() { return this.log; }
+    public List<String> getLog() { return this.log; }  // Getter for the log
 
     @Override
     public void run() {
         try {
             boolean won;
-            while(true) {
+            while(true) {                              // Roll 1-6 (inclusive), update position and won boolean
                 won = makeMove(rng.nextInt(1, 7));
-                if(!won)
+                if(!won)                               // 20-50ms sleep (inclusive) after non-winning move
                     Thread.sleep(rng.nextLong(20, 51));
                 else {
-                    Thread.sleep(100);
-                    won = false;
-                    position = 0;
+                    Thread.sleep(100);          // 100ms sleep on win
+                    won = false;                       // reset won boolean
+                    position = 0;                      // start at first cell again
                 }
             }
-        } catch (Exception e) {                        // Catch interrupts
+        } catch (Exception e) {                        // Catch interrupts and log them to console
             System.out.println("Thread "+Thread.currentThread().threadId()+": "+e);
         }
     }
 
+    // This function calculates the consequences of a given dice roll
     public boolean makeMove(int steps) {
-        position += steps;
-        timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
+        position += steps;                             // Make move
+        // Set timestamp for the log in ms, with leading zeroes to fill 9 total digits, as a string
+        timeDiff = Long.toUnsignedString(1000000000+System.currentTimeMillis()-startTime).substring(1);
+
         if(position >= 99) {
-            log.add(timeDiff+" Player wins");
-            return true;
+            log.add(timeDiff+" Player wins");          // If you win, log it
+            return true;                               // Return indicates that you won
         } else {
             int newPos;
-            log.add(timeDiff+" Player "+position);
-            if((newPos = checkForSnl(position)) != position) {
-                log.add(timeDiff+" Player "+position+" "+newPos);
-                position = newPos;
+            log.add(timeDiff+" Player "+position);     // If you don't win, log the new position
+            if((newPos = checkForSnl(position)) != position) { // Check for snakes or ladders
+                log.add(timeDiff+" Player "+position+" "+newPos); // Log snake or ladder usage
+                position = newPos;                     // Update position if snake or ladder used
             }
-            return false;
+            return false;                              // Return indicates that you didn't win
         }
     }
 
+    // This function checks the board at a specific location for snakes and ladders
+    // It is essential that board access is synchronized across all threads
     public synchronized int checkForSnl(int pos) {
         switch(board[pos/10][pos%10].getStatus()) {
-            case snakeTail:
+            case snakeTail:                            // If at tail of snake, return next position
                 return board[pos/10][pos%10].getDestination();
-            case ladderBase:
+            case ladderBase:                           // If at base of ladder, return next position
                 return board[pos/10][pos%10].getDestination();
-            default:
+            default:                                   // Else return current position
                 return pos;
         }
     }
@@ -176,104 +182,116 @@ class Player implements Runnable{
 // The Adder class provides funcitonality for adding snakes and ladders to the board
 class Adder implements Runnable{
 
-    private Cell[][] board;
-    private int sleepTime;
-    private ThreadLocalRandom rng;
-    private long startTime;
-    private String timeDiff;
-    private List<String> log;
-    
-    public Adder(Cell[][] board, int sleepTime, long startTime, List<String> log) {
-        this.board = board;
-        this.sleepTime = sleepTime;
-        this.rng = ThreadLocalRandom.current();
-        this.startTime = startTime;
-        this.log = log;
-    }
+    private Cell[][] board;                            // Pointer to the shared 2D Cell array          
+    private int sleepTime;                             // Sleep time between actions in ms             
+    private ThreadLocalRandom rng;                     // Thread-safe rng for Random ops               
+    private long startTime;                            // Value of system clock when thread was started
+    private String timeDiff;                           // String rep of time since thread start        
+    private List<String> log;                          // Log of actions taken                         
 
-    public Adder(Cell[][] board, int sleepTime, long startTime) {
+    public Adder(Cell[][] board, int sleepTime, long startTime) { // Simple constructor
         this.board = board;
         this.sleepTime = sleepTime;
         this.rng = ThreadLocalRandom.current();
         this.startTime = startTime;
         this.log = new ArrayList<String>();
     }
-    
-    public List<String> getLog() { return this.log; }
+
+    // Getter and Setter for the log attribute
+    public List<String> getLog() { return log; }
+    public void setLog(List<String> log) { this.log = log; }
 
     @Override
     public void run() {
         try {
-            while(true) {
+            while(true) {                              // Forever
                 if(rng.nextBoolean()) {
-                    placeLadder();
+                    placeLadder();                     //   0.5 chance to place ladder
                 } else {
-                    placeSnake();
+                    placeSnake();                      //   0.5 chance to place snake
                 }
-                Thread.sleep(sleepTime);
+                Thread.sleep(sleepTime);               // Then sleep for sleep time
             }
-        } catch (Exception e) {                        // Catch interrupts
+        } catch (Exception e) {                        // Catch interrupts and log them to console
             System.out.println("Thread "+Thread.currentThread().threadId()+": "+e);
         }
         
     }
 
+    // This function places a random ladder on the board (if there is space available)
     public synchronized void placeLadder() {
+        // Collect all empty cells into a list, and remove the start and end cells
         List<Cell> emptyCells = Arrays.stream(board).flatMap(r -> Arrays.stream(r))
             .filter(c -> c.getStatus() == CellStatus.empty)
             .collect(Collectors.toList());
         emptyCells.removeFirst();
         emptyCells.removeLast();
 
+        // If the resulting list is empty, there is nowhere to place a ladder, so abort
         if(emptyCells.isEmpty())
             return;
         
+        // Initialise my loop variables to prevent compiler complaints below
         int baseIndex=0;
         Cell top=new Cell(0), base = new Cell(0);
         boolean safe = false;
 
+        // Select a pair of cells, taking the "top" cell from a higher index
+        // Check if they're compatible (not in the same row), if not then repeat the process
         while(!safe) {
             safe = true;
-            baseIndex = rng.nextInt(emptyCells.size()-1);  // -1 ensures top element cannot be picked
-            base = emptyCells.get(baseIndex);
+            baseIndex = rng.nextInt(emptyCells.size()-1);  // -1 ensures top cell cannot be the base
+            base = emptyCells.get(baseIndex);              // select a top cell from a higher index
             top = emptyCells.get(rng.nextInt(baseIndex+1, emptyCells.size()));
-            if((int)top.getPosition()/10 <= (int)base.getPosition()/10)
+            if((int)top.getPosition()/10 <= (int)base.getPosition()/10) // check compatibility
                 safe = false;
         }
 
+        // Create a ladder between base and top cells
         base.setStatus(CellStatus.ladderBase);
         top.setStatus(CellStatus.ladderTop);
         base.setDestination(top.getPosition());
+
+        // Set timestamp as before and log the action taken
         timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
         log.add(timeDiff+" Adder ladder "+base.getPosition()+" "+top.getPosition());
     }
 
+    // This function places a random snake on the board (if there is space available)
     public synchronized void placeSnake() {
+        // Collect all empty cells into a list, and remove the start and end cells
         List<Cell> emptyCells = Arrays.stream(board).flatMap(r -> Arrays.stream(r))
             .filter(c -> c.getStatus() == CellStatus.empty)
             .collect(Collectors.toList());
         emptyCells.removeFirst();
         emptyCells.removeLast();
 
+        // If the resulting list is empty, there is nowhere to place a snake, so abort
         if(emptyCells.isEmpty())
             return;
         
+        // Initialise my loop variables to prevent compiler complaints below
         int tailIndex=0;
         Cell tail=new Cell(0), head = new Cell(0);
         boolean safe = false;
         
+        // Select a pair of cells, taking the "tail" cell from a higher index
+        // Check if they're compatible (not in the same row), if not then repeat the process
         while(!safe) {
             safe = true;
-            tailIndex = rng.nextInt(1, emptyCells.size()); // 1 Origin prevents first element selection
+            tailIndex = rng.nextInt(1, emptyCells.size()); // 1 origin prevents tail being first Cell
             tail = emptyCells.get(tailIndex);
-            head = emptyCells.get(rng.nextInt(tailIndex));
-            if((int)tail.getPosition()/10 <= (int)head.getPosition()/10)
+            head = emptyCells.get(rng.nextInt(tailIndex)); // Select a head Cell from any lower index
+            if((int)tail.getPosition()/10 <= (int)head.getPosition()/10) // Check compatibility
                 safe = false;
         }
 
+        // Create a snake between tail and head cells
         tail.setStatus(CellStatus.snakeTail);
         head.setStatus(CellStatus.snakeHead);
         tail.setDestination(head.getPosition());
+
+        // Set timestamp as before and log the action taken
         timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
         log.add(timeDiff+" Adder snake "+tail.getPosition()+" "+head.getPosition());
     }
@@ -282,14 +300,14 @@ class Adder implements Runnable{
 // The Remover class provides funcitonality for removing snakes and ladders from the board
 class Remover implements Runnable{
 
-    private Cell[][] board;
-    private int sleepTime;
-    private ThreadLocalRandom rng;
-    private long startTime;
-    private String timeDiff;
-    private List<String> log;
+    private Cell[][] board;                            // Pointer to the shared 2D Cell array
+    private int sleepTime;                             // Sleep time between actions in ms
+    private ThreadLocalRandom rng;                     // Thread-safe rng for Random ops
+    private long startTime;                            // Value of system clock when thread was started
+    private String timeDiff;                           // String rep of time since thread start
+    private List<String> log;                          // Log of actions taken
     
-    public Remover(Cell[][] board, int sleepTime, long startTime) {
+    public Remover(Cell[][] board, int sleepTime, long startTime) { // Simple constructor
         this.board = board;
         this.sleepTime = sleepTime;
         this.rng = ThreadLocalRandom.current();
@@ -297,32 +315,42 @@ class Remover implements Runnable{
         this.log = new ArrayList<String>();
     }
 
-    public List<String> getLog() { return this.log; }
+    public List<String> getLog() { return this.log; }  // Getter for the log
 
     @Override
     public void run() {
-        try {
-            while(true) {
-                removeSnakeOrLadder();
-                Thread.sleep(sleepTime);
+        try {               // NB Assignment does not specify that snake/ladder REMOVAL must be equal chance
+            while(true) {                              // Forever
+                removeSnakeOrLadder();                 // Remove snake or ladder
+                Thread.sleep(sleepTime);               // Sleep for sleep time
             }
-        } catch (Exception e) {                        // Catch interrupts
+        } catch (Exception e) {                        // Catch interrupts and log them to console
             System.out.println("Thread "+Thread.currentThread().threadId()+": "+e);
         }
     }
 
+    // This function removes a randomly selected snake or ladder from the board
+    // It is yet again essential for this board modification to be synchronisde across threads
     public synchronized void removeSnakeOrLadder() {
+        // Collect all snakeTail or ladderBase cells into a list
         List<Cell> occupiedCells = Arrays.stream(board).flatMap(r -> Arrays.stream(r))
             .filter(c -> (c.getStatus() == CellStatus.snakeTail || c.getStatus() == CellStatus.ladderBase))
             .collect(Collectors.toList());
+
+        // If the resulting list is empty, there are no snakes or ladders to remove, so abort
         if(occupiedCells.isEmpty())
             return;
 
+        // Select a random snakeTail or ladderBase cell from the list, and store its head/top too
         Cell startCell = occupiedCells.get(rng.nextInt(occupiedCells.size()));
         Cell endCell = board[startCell.getDestination()/10][startCell.getDestination()%10];
+
+        // Remove the snake or ladder from the board
         endCell.setStatus(CellStatus.empty);
         startCell.setStatus(CellStatus.empty);
         startCell.setDestination(0);
+
+        // Set timestamp as before and log the action taken
         timeDiff = Long.toUnsignedString(1000000000 + System.currentTimeMillis()-startTime).substring(1);
         if(startCell.getPosition() < endCell.getPosition())
             log.add(timeDiff+" Remover ladder "+startCell.getPosition()+" "+endCell.getPosition());
